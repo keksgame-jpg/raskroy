@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Раскрой монолитного поликарбоната</title>
+<meta name="theme-color" content="#16213a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Раскрой">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #fff; --text: #1d2330; --muted: #6b7280; --line: #e3e6eb;
+    --accent: #1f6feb; --accent-2: #e8f0fe; --danger: #d93025; --ok: #188038;
+    --sheet: #f1f3f5; --offcut: #d7f2dd; --scrap: #e9ecef;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { background: #16213a; color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .hint { color: #b8c2d8; font-size: 12px; }
+  header .spacer { flex: 1; }
+  .layout { display: grid; grid-template-columns: 470px 1fr; gap: 16px; padding: 16px; align-items: start; }
+  @media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .layout > * { min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+  .panel h2 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .panel h2 .sub { color: var(--muted); font-weight: 400; font-size: 12px; }
+  table.edit { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.edit input { min-width: 0; }
+  table.edit th.n { width: 40px; }
+  table.edit th:last-child { width: 44px; }
+  table.edit th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 2px 3px; }
+  table.edit td { padding: 2px 3px; }
+  table.edit input[type=text], table.edit input[type=number] { width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
+  table.edit input:focus { outline: 2px solid var(--accent-2); border-color: var(--accent); }
+  table.edit .num { width: 78px; }
+  table.edit .qty { width: 58px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: middle; border: 1px solid rgba(0,0,0,.15); }
+  button { font: inherit; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  button:hover { background: #f7f8fa; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; padding: 9px 16px; }
+  button.primary:hover { filter: brightness(1.07); }
+  button.icon { padding: 3px 8px; color: var(--muted); }
+  button.icon:hover { color: var(--danger); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .params { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .params input, .params select { min-width: 0; width: 100%; }
+  .params label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 3px; }
+  .params input, .params select { padding: 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; color: var(--text); }
+  .params .check { flex-direction: row; align-items: center; gap: 6px; grid-column: 1 / -1; color: var(--text); font-size: 13px; }
+  textarea { width: 100%; min-height: 90px; font: 12px/1.4 ui-monospace, Consolas, monospace; padding: 6px; border: 1px solid var(--line); border-radius: 6px; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 8px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .stat { background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+  .stat .v { font-size: 20px; font-weight: 700; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .warn { background: #fdecea; color: #8a1c13; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .sheet { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; page-break-inside: avoid; }
+  .sheet-head { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; margin-bottom: 8px; }
+  .sheet-head b { font-size: 15px; }
+  .badge { background: var(--accent-2); color: var(--accent); border-radius: 999px; padding: 1px 9px; font-weight: 600; font-size: 12px; }
+  svg.sheet-svg { width: 100%; height: auto; display: block; background: #fff; }
+  .progress { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 10px; display: none; }
+  .progress div { height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+  .empty { color: var(--muted); text-align: center; padding: 60px 20px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .card { border: 1px solid #c3ced8; border-radius: 6px; margin: 14px 0; overflow: hidden; background: #fff; page-break-inside: avoid; }
+  .card > summary { background: #8fa3b1; color: #fff; font-weight: 600; font-size: 16px; padding: 8px 14px; cursor: pointer;
+    list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  .card > summary::-webkit-details-marker { display: none; }
+  .card > summary::after { content: ''; width: 9px; height: 9px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg); margin: -4px 4px 0 0; transition: transform .15s; }
+  .card:not([open]) > summary::after { transform: rotate(-45deg); margin-top: 0; }
+  .kv { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 14px; }
+  .kv td { padding: 6px 14px; vertical-align: top; }
+  .kv td:first-child { font-weight: 600; width: 55%; }
+  .kv tr:nth-child(even) td { background: #f5f7f9; }
+  .kv .pct { color: var(--muted); font-size: 12px; margin-left: 4px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+  .tbl th, .tbl td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+  .tbl th { color: var(--muted); font-weight: 500; }
+  .sheet-svg-wrap { display: flex; justify-content: center; }
+  /* ---------- телефоны ---------- */
+  @media (max-width: 700px) {
+    header { padding: calc(10px + env(safe-area-inset-top)) 14px 10px; }
+    header h1 { font-size: 16px; }
+    header .hint, #btnPrint { display: none; }
+    .layout { padding: 10px; gap: 10px; }
+    .panel { padding: 12px; margin-bottom: 10px; }
+    .panel h2 { flex-wrap: wrap; }
+    table.edit th, table.edit td { padding: 3px 2px; }
+    table.edit input[type=number], .params input, .params select, textarea { font-size: 16px; padding: 9px 8px; }
+    table.edit .num, table.edit .qty { width: 100%; }
+    button { padding: 10px 14px; }
+    button.icon { padding: 9px 11px; }
+    #run { width: 100%; padding: 14px; font-size: 16px; }
+    #results { padding: 10px; }
+    .kv { font-size: 13px; }
+    .kv td { padding: 6px 10px; }
+    .kv td:first-child { width: 52%; }
+    .card > summary { font-size: 15px; }
+    .sheet-head { font-size: 13px; }
+  }
+  @media print {
+    header, .inputs, .noprint { display: none !important; }
+    body { background: #fff; }
+    .layout { display: block; padding: 0; }
+    .panel { border: none; padding: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Раскрой монолитного поликарбоната</h1>
+  <span class="hint">Все размеры в мм. Детали поворачиваются на 90°, если так выгоднее.</span>
+  <span class="spacer"></span>
+  <button id="btnPrint">Печать</button>
+</header>
+
+<div class="layout">
+  <div class="inputs">
+    <div class="panel">
+      <h2>Листы на складе <span class="sub">кол-во пусто = без ограничений</span></h2>
+      <table class="edit" id="stockTable"></table>
+      <div class="row"><button id="addStock">+ Лист</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>Детали <span class="sub" id="partsInfo"></span></h2>
+      <table class="edit" id="partsTable"></table>
+      <div class="row">
+        <button id="addPart">+ Деталь</button>
+        <button id="clearParts">Очистить</button>
+      </div>
+      <details>
+        <summary>Вставить список из Excel / текста</summary>
+        <p class="muted">Каждая строка: <code>ширина длина количество</code>. Разделители — пробел, таб, «;» или «x». Детали получат номера по порядку.</p>
+        <textarea id="importText" placeholder="700 3000 4&#10;1000 1500 2&#10;500x1200x10"></textarea>
+        <div class="row"><button id="importBtn">Добавить в список</button></div>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>Параметры</h2>
+      <div class="params">
+        <label>Ширина пропила, мм <input type="number" inputmode="decimal" id="kerf" min="0" step="0.5"></label>
+        <label>Мин. деловой остаток, мм <input type="number" inputmode="numeric" id="minOffcut" min="0" step="10"></label>
+        <label>Глубина поиска
+          <select id="quality">
+            <option value="1">Быстро (~1 с)</option>
+            <option value="3">Нормально (~3 с)</option>
+            <option value="8">Максимум (~8 с)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <button class="primary" id="run">Рассчитать раскрой</button>
+        <span class="muted" id="runInfo"></span>
+      </div>
+      <div class="progress" id="progress"><div></div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="results">
+    <div class="empty">Заполните листы и детали, затем нажмите «Рассчитать раскрой».</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===================== Состояние ===================== */
+const STORE_KEY = 'pc-cut-optimizer-v2';
+const defaults = () => ({
+  stock: [ { w: '', l: '', qty: '' } ],
+  parts: [ { w: '', l: '', qty: '' } ],
+  kerf: 4, minOffcut: 500, quality: '3',
+});
+let state;
+try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); state = s ? Object.assign(defaults(), s) : defaults(); } catch (e) { state = defaults(); }
+// проект из версии с двумя режимами: берём склад монолита
+if (state.stocks) { state.stock = state.stocks.mono || defaults().stock; delete state.stocks; delete state.mode; }
+const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} };
+const curStock = () => state.stock;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const colorOf = i => `hsl(${(i * 137.508) % 360} 70% 78%)`;
+const strokeOf = i => `hsl(${(i * 137.508) % 360} 45% 42%)`;
+const fmt = n => Math.round(n).toLocaleString('ru-RU');
+const m2 = a => (a / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+
+/* ===================== Ввод ===================== */
+function renderStock() {
+  const t = $('#stockTable');
+  t.innerHTML = '<tr><th>Ширина</th><th>Длина</th><th>Кол-во</th><th></th></tr>' +
+    curStock().map((s, i) => `<tr>
+      <td><input type="number" inputmode="numeric" class="num" data-i="${i}" data-k="w" value="${esc(s.w)}"></td>
+      <td><input type="number" inputmode="numeric" class="num" data-i="${i}" data-k="l" value="${esc(s.l)}"></td>
+      <td><input type="number" inputmode="numeric" class="qty" data-i="${i}" data-k="qty" value="${esc(s.qty)}" placeholder="∞"></td>
+      <td><button class="icon" data-del="${i}" title="Удалить">✕</button></td></tr>`).join('');
+}
+function renderParts() {
+  const t = $('#partsTable');
+  t.innerHTML = '<tr><th class="n">№</th><th>Ширина</th><th>Длина</th><th>Кол-во</th><th></th></tr>' +
+    state.parts.map((p, i) => `<tr>
+      <td style="white-space:nowrap"><span class="swatch" style="background:${colorOf(i)}"></span> <b>${i + 1}</b></td>
+      <td><input type="number" inputmode="numeric" class="num" data-i="${i}" data-k="w" value="${esc(p.w)}"></td>
+      <td><input type="number" inputmode="numeric" class="num" data-i="${i}" data-k="l" value="${esc(p.l)}"></td>
+      <td><input type="number" inputmode="numeric" class="qty" data-i="${i}" data-k="qty" value="${esc(p.qty)}"></td>
+      <td><button class="icon" data-del="${i}" title="Удалить">✕</button></td></tr>`).join('');
+  const total = state.parts.reduce((s, p) => s + (+p.qty || 0), 0);
+  $('#partsInfo').textContent = `${state.parts.length} поз., ${total} шт.`;
+}
+function bindTable(sel, arr, rerender) {
+  const t = $(sel);
+  t.addEventListener('input', e => {
+    const el = e.target, i = +el.dataset.i, k = el.dataset.k;
+    if (k == null) return;
+    const list = arr();
+    list[i][k] = el.type === 'checkbox' ? el.checked : (el.type === 'number' ? (el.value === '' ? '' : +el.value) : el.value);
+    save();
+    if (sel === '#partsTable' && k === 'qty') renderPartsInfo();
+  });
+  t.addEventListener('click', e => {
+    const d = e.target.dataset.del;
+    if (d == null) return;
+    arr().splice(+d, 1); save(); rerender();
+  });
+}
+function renderPartsInfo() {
+  const total = state.parts.reduce((s, p) => s + (+p.qty || 0), 0);
+  $('#partsInfo').textContent = `${state.parts.length} поз., ${total} шт.`;
+}
+function renderParams() {
+  $('#kerf').value = state.kerf;
+  $('#minOffcut').value = state.minOffcut; $('#quality').value = state.quality;
+}
+function renderAll() { renderStock(); renderParts(); renderParams(); }
+
+bindTable('#stockTable', curStock, renderStock);
+bindTable('#partsTable', () => state.parts, renderParts);
+['kerf', 'minOffcut', 'quality'].forEach(k => $('#' + k).addEventListener('input', e => {
+  state[k] = e.target.type === 'number' ? (+e.target.value || 0) : e.target.value; save();
+}));
+$('#addStock').onclick = () => { const s = curStock(), last = s[s.length - 1] || defaults().stock[0];
+  s.push({ w: last.w, l: last.l, qty: '' }); save(); renderStock(); };
+$('#addPart').onclick = () => { state.parts.push({ w: '', l: '', qty: '' }); save(); renderParts();
+  const inputs = document.querySelectorAll('#partsTable input[data-k="w"]'); inputs[inputs.length - 1]?.focus(); };
+$('#clearParts').onclick = () => { if (confirm('Удалить все детали?')) { state.parts = []; save(); renderParts(); } };
+$('#importBtn').onclick = () => {
+  const lines = $('#importText').value.split(/\r?\n/);
+  let added = 0;
+  for (const line of lines) {
+    const tokens = line.trim().replace(/(\d)\s*[xх×*]\s*(?=\d)/gi, '$1 ').split(/[\s;\t]+/).filter(Boolean);
+    const nums = tokens.filter(tk => /^[\d.,]+$/.test(tk)).map(tk => parseFloat(tk.replace(',', '.')));
+    if (nums.length < 2) continue;
+    state.parts.push({ w: nums[0], l: nums[1], qty: nums[2] || 1 });
+    added++;
+  }
+  save(); renderParts();
+  $('#importText').value = '';
+  $('#runInfo').textContent = `Добавлено позиций: ${added}`;
+};
+$('#btnPrint').onclick = () => window.print();
+
+/* ===================== Алгоритм раскроя =====================
+ * Гильотинный полосовой раскрой с упором на заполнение ширины листа:
+ *  1. Лист режется поперёк на полосы (по длине листа).
+ *  2. Для каждой полосы перебираются варианты её длины; ширина полосы
+ *     заполняется «столбцами» деталей через задачу о рюкзаке (DP) — так
+ *     подбирается комбинация, максимально закрывающая ширину листа.
+ *  3. Остатки внутри столбцов и полосы дозаполняются жадной гильотиной.
+ *  4. Всё повторяется с разными стратегиями/случайными возмущениями,
+ *     выбирается лучший результат (меньше листов → меньше отхода → больше деловой остаток).
+ */
+const gcd = (a, b) => { a = Math.round(a); b = Math.round(b); while (b) [a, b] = [b, a % b]; return a; };
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function prepare(st) {
+  const kerf = Math.max(0, +st.kerf || 0), trim = 0; // кромка не обрезается
+  const stocks = st.stock
+    .map((s, i) => ({ i, w: +s.w, l: +s.l, qty: (s.qty === '' || s.qty == null) ? Infinity : Math.floor(+s.qty) }))
+    .filter(s => s.w > 2 * trim && s.l > 2 * trim && s.qty > 0);
+  const types = [];
+  st.parts.forEach((p, idx) => {
+    const w = +p.w, l = +p.l, qty = Math.floor(+p.qty);
+    if (!(w > 0 && l > 0 && qty > 0)) return;
+    const orients = [{ w, l, r: false }];
+    if (w !== l) orients.push({ w: l, l: w, r: true });
+    types.push({ id: types.length, idx, name: `№${idx + 1}`, w, l, qty, orients, area: w * l });
+  });
+  return { kerf, trim, stocks, types, minOffcut: Math.max(0, +st.minOffcut || 0) };
+}
+
+// Жадное гильотинное заполнение прямоугольника (x — поперёк, y — вдоль листа)
+function fillRect(rect, rem, types, kerf, out) {
+  const free = [rect];
+  let area = 0;
+  while (free.length) {
+    let fi = 0;
+    for (let i = 1; i < free.length; i++) if (free[i].w * free[i].l > free[fi].w * free[fi].l) fi = i;
+    const f = free.splice(fi, 1)[0];
+    let best = null, bs = -Infinity;
+    for (const t of types) {
+      if (!rem[t.id]) continue;
+      for (const o of t.orients) {
+        if (o.w > f.w || o.l > f.l) continue;
+        const s = o.w * o.l - Math.min(f.w - o.w, f.l - o.l) * 1e-3;
+        if (s > bs) { bs = s; best = { t, o }; }
+      }
+    }
+    if (!best) continue;
+    const { t, o } = best;
+    // сколько одинаковых деталей уместится в ряд поперёк (заполняем ширину)
+    const n = Math.min(rem[t.id], Math.floor((f.w + kerf) / (o.w + kerf)));
+    for (let j = 0; j < n; j++) out.push({ t: t.id, x: f.x + j * (o.w + kerf), y: f.y, w: o.w, l: o.l, r: o.r });
+    rem[t.id] -= n; area += n * o.w * o.l;
+    const bw = n * (o.w + kerf) - kerf;
+    const rw = f.w - bw - kerf, tl = f.l - o.l - kerf;
+    // два варианта гильотинного разреза — оставляем тот, где остаток крупнее
+    const a1 = [{ x: f.x + bw + kerf, y: f.y, w: rw, l: f.l }, { x: f.x, y: f.y + o.l + kerf, w: bw, l: tl }];
+    const a2 = [{ x: f.x + bw + kerf, y: f.y, w: rw, l: o.l }, { x: f.x, y: f.y + o.l + kerf, w: f.w, l: tl }];
+    const mx = a => Math.max(...a.map(r => (r.w > 0 && r.l > 0) ? r.w * r.l : 0));
+    for (const r of (mx(a1) >= mx(a2) ? a1 : a2)) if (r.w > 0 && r.l > 0) free.push(r);
+  }
+  return area;
+}
+
+// Рюкзак по ширине: какие столбцы поставить поперёк полосы
+function knapsack(units, cap) {
+  let g = cap;
+  for (const u of units) g = gcd(g, u.width);
+  if (g < 1) g = 1;
+  if (cap / g > 1000) g = Math.ceil(cap / 1000);
+  const C = Math.floor(cap / g), n = units.length;
+  const dp = new Float64Array(C + 1), keep = new Uint8Array(n * (C + 1));
+  for (let i = 0; i < n; i++) {
+    const wu = Math.ceil(units[i].width / g - 1e-9), v = units[i].val;
+    units[i].wu = wu;
+    if (wu > C) continue;
+    const base = i * (C + 1);
+    for (let c = C; c >= wu; c--) { const nv = dp[c - wu] + v; if (nv > dp[c] + 1e-6) { dp[c] = nv; keep[base + c] = 1; } }
+  }
+  const chosen = [];
+  let c = C;
+  for (let i = n - 1; i >= 0; i--) if (keep[i * (C + 1) + c]) { chosen.push(units[i]); c -= units[i].wu; }
+  return chosen;
+}
+
+function buildStrip(maxLen, Wu, rem, types, kerf, strat, rng) {
+  const lens = new Set();
+  for (const t of types) if (rem[t.id]) for (const o of t.orients) if (o.l <= maxLen && o.w <= Wu) lens.add(o.l);
+  if (!lens.size) return null;
+  let cands = [...lens].sort((a, b) => b - a);
+  if (cands.length > strat.maxCands) {
+    const head = cands.slice(0, strat.maxCands - 4), rest = cands.slice(strat.maxCands - 4);
+    for (let i = 0; i < 4 && rest.length; i++) head.push(rest.splice(Math.floor(rng() * rest.length), 1)[0]);
+    cands = head;
+  }
+  let best = null, bestScore = -Infinity;
+  const cap = Wu + kerf;
+  for (const s of cands) {
+    const r = rem.slice(), pl = [];
+    const units = [];
+    for (const t of types) {
+      const q = r[t.id];
+      if (!q) continue;
+      for (const o of t.orients) {
+        if (o.l > s || o.w > Wu) continue;
+        const k = Math.min(q, Math.floor((s + kerf) / (o.l + kerf)));
+        const maxCols = Math.floor(cap / (o.w + kerf));
+        const fullAll = Math.floor(q / k);
+        let full = Math.min(fullAll, maxCols);
+        const part = q - fullAll * k;
+        for (let c = 1; full > 0; c *= 2) {
+          const take = Math.min(c, full);
+          units.push({ t, o, k, cols: take, width: take * (o.w + kerf), val: take * k * o.w * o.l });
+          full -= take;
+        }
+        if (part > 0 && fullAll < maxCols) units.push({ t, o, k: part, cols: 1, width: o.w + kerf, val: part * o.w * o.l });
+      }
+    }
+    const chosen = knapsack(units, cap);
+    const cols = [];
+    for (const u of chosen) for (let j = 0; j < u.cols; j++) cols.push(u);
+    cols.sort((a, b) => b.o.w - a.o.w || b.o.l - a.o.l);
+    let x = 0, area = 0;
+    for (const col of cols) {
+      const n = Math.min(col.k, r[col.t.id]);
+      if (!n || x + col.o.w > Wu) continue;
+      for (let j = 0; j < n; j++) pl.push({ t: col.t.id, x, y: j * (col.o.l + kerf), w: col.o.w, l: col.o.l, r: col.o.r });
+      r[col.t.id] -= n; area += n * col.o.w * col.o.l;
+      const used = n * (col.o.l + kerf);
+      if (s - used > 0) area += fillRect({ x, y: used, w: col.o.w, l: s - used }, r, types, kerf, pl);
+      x += col.o.w + kerf;
+    }
+    if (Wu - x > 0) area += fillRect({ x, y: 0, w: Wu - x, l: s }, r, types, kerf, pl);
+    if (!pl.length) continue;
+    let len = 0, wUsed = 0;
+    for (const p of pl) { len = Math.max(len, p.y + p.l); wUsed = Math.max(wUsed, p.x + p.w); }
+    const util = area / (len * Wu);
+    let score = util;
+    if (strat.mode === 'long') score += 0.04 * (len / maxLen);
+    if (strat.mode === 'width') score = 0.7 * util + 0.3 * (wUsed / Wu);
+    if (strat.noise) score += (rng() - 0.5) * strat.noise;
+    if (score > bestScore) { bestScore = score; best = { len, pl, r, area, util }; }
+  }
+  return best;
+}
+
+function buildSheet(stock, rem, P, strat, rng) {
+  const Wu = stock.w - 2 * P.trim, Lu = stock.l - 2 * P.trim, k = P.kerf;
+  let y = 0, area = 0;
+  const strips = [], pl = [];
+  while (Lu - y > 0) {
+    const st = buildStrip(Lu - y, Wu, rem, P.types, k, strat, rng);
+    if (!st) break;
+    for (let i = 0; i < rem.length; i++) rem[i] = st.r[i];
+    for (const p of st.pl) { p.y += y; pl.push(p); }
+    strips.push({ y, len: st.len });
+    area += st.area;
+    y += st.len + k;
+  }
+  const end = P.trim + y; // начало остатка (после последнего пропила)
+  const offLen = stock.l - end;
+  return { stock, strips, pl, area, offcut: offLen > 0 ? { y: end, len: offLen } : null };
+}
+
+function solveOnce(P, strat, seed) {
+  const rng = mulberry32(seed);
+  const rem = P.types.map(t => t.qty);
+  const unplaced = P.types.map(() => 0);
+  // детали, которые не помещаются ни на один лист
+  for (const t of P.types) {
+    const fits = P.stocks.some(s => t.orients.some(o => o.w <= s.w - 2 * P.trim && o.l <= s.l - 2 * P.trim));
+    if (!fits) { unplaced[t.id] = rem[t.id]; rem[t.id] = 0; }
+  }
+  const stockLeft = P.stocks.map(s => s.qty);
+  const maxArea = Math.max(...P.stocks.map(s => s.w * s.l));
+  const sheets = [];
+  while (rem.some(x => x > 0)) {
+    let best = null, bestKey = -Infinity;
+    P.stocks.forEach((s, si) => {
+      if (stockLeft[si] <= 0) return;
+      const r = rem.slice();
+      const sh = buildSheet(s, r, P, strat, rng);
+      if (!sh.pl.length) return;
+      const done = r.every(x => !x);
+      const util = sh.area / (s.w * s.l);
+      // если всё влезло — берём наименьший подходящий лист, иначе — с лучшим заполнением
+      const key = done ? 10 + (1 - s.w * s.l / maxArea) : util + 0.002 * (s.w * s.l / maxArea);
+      if (key > bestKey) { bestKey = key; best = { sh, r, si }; }
+    });
+    if (!best) { rem.forEach((q, i) => { unplaced[i] += q; rem[i] = 0; }); break; }
+    sheets.push(best.sh);
+    best.r.forEach((q, i) => rem[i] = q);
+    stockLeft[best.si]--;
+  }
+  let stockArea = 0, partArea = 0, offArea = 0;
+  for (const sh of sheets) {
+    stockArea += sh.stock.w * sh.stock.l; partArea += sh.area;
+    if (sh.offcut && sh.offcut.len >= P.minOffcut) offArea += sh.offcut.len * sh.stock.w;
+  }
+  return { sheets, unplaced, stockArea, partArea, offArea, scrap: stockArea - partArea - offArea, strat };
+}
+
+function better(a, b) {
+  if (!b) return true;
+  const ua = a.unplaced.reduce((s, x) => s + x, 0), ub = b.unplaced.reduce((s, x) => s + x, 0);
+  if (ua !== ub) return ua < ub;
+  if (Math.abs(a.stockArea - b.stockArea) > 1) return a.stockArea < b.stockArea;
+  if (a.sheets.length !== b.sheets.length) return a.sheets.length < b.sheets.length;
+  return a.scrap < b.scrap - 1;
+}
+
+async function optimize(P, seconds, onProgress) {
+  const base = [
+    { mode: 'util', noise: 0, maxCands: 40 },
+    { mode: 'width', noise: 0, maxCands: 40 },
+    { mode: 'long', noise: 0, maxCands: 40 },
+  ];
+  let best = null, runs = 0;
+  const t0 = performance.now(), budget = seconds * 1000;
+  for (let i = 0; ; i++) {
+    const strat = i < base.length ? base[i]
+      : { mode: ['util', 'width', 'long'][i % 3], noise: 0.01 + ((i * 7) % 10) * 0.008, maxCands: 16 + (i % 4) * 8 };
+    const res = solveOnce(P, strat, 12345 + i * 7919);
+    runs++;
+    if (better(res, best)) best = res;
+    const el = performance.now() - t0;
+    onProgress(Math.min(1, el / budget));
+    if (i >= base.length - 1 && el >= budget) break;
+    if (i % 2 === 1) await new Promise(r => setTimeout(r, 0));
+  }
+  best.runs = runs;
+  return best;
+}
+
+/* ===================== Вывод ===================== */
+// На узком экране лист рисуется вертикально (длина листа — сверху вниз)
+const isVert = () => window.innerWidth < 700;
+
+function sheetSvg(sh, P, vert) {
+  const { stock } = sh, W = stock.w, L = stock.l, tr = P.trim;
+  // a — координата вдоль длины листа, b — поперёк; переводим в экранные x/y
+  const R = (a, b, la, lb) => vert ? { x: b, y: a, w: lb, h: la } : { x: a, y: b, w: la, h: lb };
+  const SW = vert ? W : L, SH = vert ? L : W;
+  const sw = Math.max(L, W) / 600; // толщина линий
+  const minFs = Math.min(W, L) * 0.015;
+  // подпись по центру прямоугольника: размер шрифта подбирается, узкие поля — поворот на 90°
+  const label = (r, lines, cap, colors) => {
+    const n = Math.max(...lines.map(s => s.length)), k = lines.length;
+    const fit = (w, h) => Math.min(cap, w / (n * 0.6), h / (k * 1.6));
+    const fh = fit(r.w, r.h), fv = fit(r.h, r.w), rot = fv > fh * 1.15, fs = rot ? fv : fh;
+    if (fs < minFs) return '';
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    return `<g${rot ? ` transform="rotate(-90 ${cx} ${cy})"` : ''}>` + lines.map((t, i) =>
+      `<text x="${cx}" y="${cy + (i - (k - 1) / 2) * fs * 1.25}" font-size="${i ? fs * 0.8 : fs}" text-anchor="middle" dominant-baseline="middle" fill="${colors[i]}">${esc(t)}</text>`).join('') + '</g>';
+  };
+  const rect = (r, fill, stroke, width, extra = '') =>
+    `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fill}" stroke="${stroke}" stroke-width="${width}">${extra}</rect>`;
+
+  let g = rect(R(0, 0, L, W), 'url(#hatch)', '#555', sw * 1.5);
+  if (sh.offcut) {
+    const good = sh.offcut.len >= P.minOffcut, r = R(sh.offcut.y, 0, sh.offcut.len, W);
+    g += rect(r, good ? 'var(--offcut)' : 'var(--scrap)', '#555', sw);
+    g += label(r, [`${good ? 'Остаток' : 'Отход'} ${fmt(W)}×${fmt(sh.offcut.len)}`], W * 0.09, [good ? '#1e6b34' : '#6b7280']);
+  }
+  for (const p of sh.pl) {
+    const t = P.types[p.t], r = R(tr + p.y, tr + p.x, p.l, p.w);
+    g += rect(r, colorOf(t.idx), strokeOf(t.idx), sw, `<title>${esc(t.name)}: ${p.w}×${p.l}${p.r ? ' (повёрнута)' : ''}</title>`);
+    g += label(r, [`${fmt(p.w)}×${fmt(p.l)}${p.r ? ' ↻' : ''}`, t.name], W * 0.07, ['#1d2330', '#3c4558']);
+  }
+  // линии поперечных резов (границы полос)
+  for (const s of sh.strips.slice(1)) {
+    const a = tr + s.y - P.kerf / 2, p1 = R(a, -W * 0.03, 0, 0), p2 = R(a, W * 1.03, 0, 0);
+    g += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="#d93025" stroke-width="${sw}" stroke-dasharray="${sw * 4} ${sw * 3}"/>`;
+  }
+  const pad = W * 0.12, fsd = W * 0.065, vbW = SW + pad * 1.4, vbH = SH + pad * 1.6;
+  let size = '';
+  if (vert) { // во всю ширину экрана, высота — по пропорциям листа
+    const w = Math.max(200, $('#results').clientWidth - 24);
+    size = ` style="width:${w}px;height:${w * vbH / vbW}px"`;
+  }
+  return `<div class="sheet-svg-wrap"><svg class="sheet-svg" viewBox="${-pad} ${-pad} ${vbW} ${vbH}"${size} xmlns="http://www.w3.org/2000/svg" font-family="system-ui, Segoe UI, Arial">
+    <defs><pattern id="hatch" width="${W / 30}" height="${W / 30}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="100%" height="100%" fill="#eceef1"/><line x1="0" y1="0" x2="0" y2="${W / 30}" stroke="#c9ced6" stroke-width="${W / 120}"/></pattern></defs>
+    <text x="${SW / 2}" y="${-pad * 0.35}" font-size="${fsd}" text-anchor="middle" fill="#6b7280">${fmt(SW)}</text>
+    <text x="${-pad * 0.35}" y="${SH / 2}" font-size="${fsd}" text-anchor="middle" fill="#6b7280" transform="rotate(-90 ${-pad * 0.35} ${SH / 2})">${fmt(SH)}</text>
+    ${g}</svg></div>`;
+}
+
+// Разбирает раскладку листа на сквозные (гильотинные) резы: число резов, их длина, куски отхода
+function cutStats(sh, P) {
+  const k = P.kerf, eps = 1e-6;
+  const st = { cuts: 0, length: 0, waste: [] };
+  const go = (r, pcs) => {
+    if (r.w <= eps || r.l <= eps) return;
+    if (!pcs.length) { st.waste.push(r); return; }
+    if (pcs.length === 1 && pcs[0].w >= r.w - eps && pcs[0].l >= r.l - eps) return;
+    // сначала поперечные резы (поперёк листа), потом продольные
+    for (const [pos, size] of [['y', 'l'], ['x', 'w']]) {
+      const start = r[pos], end = r[pos] + r[size];
+      const cands = [...new Set(pcs.map(p => p[pos] + p[size]))].sort((a, b) => a - b);
+      for (const c of cands) {
+        if (c >= end - eps) continue;
+        if (!pcs.every(p => p[pos] + p[size] <= c + eps || p[pos] >= c + k - eps)) continue;
+        st.cuts++;
+        st.length += pos === 'y' ? r.w : r.l;
+        const a = { ...r, [size]: c - start }, b = { ...r, [pos]: c + k, [size]: end - c - k };
+        go(a, pcs.filter(p => p[pos] < c));
+        go(b, pcs.filter(p => p[pos] >= c));
+        return;
+      }
+    }
+  };
+  go({ x: 0, y: 0, w: sh.stock.w - 2 * P.trim, l: sh.stock.l - 2 * P.trim }, sh.pl);
+  return st;
+}
+
+function signature(sh) {
+  return sh.stock.i + ':' + sh.pl.map(p => `${p.t},${p.x},${p.y},${p.w},${p.l}`).sort().join(';');
+}
+
+// Сворачиваемый блок «ключ — значение» (значения — готовый HTML)
+function card(title, rows) {
+  return `<details class="card" open><summary>${esc(title)}</summary><table class="kv">` +
+    rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + '</table></details>';
+}
+
+let lastRender = null;
+// при повороте телефона / изменении окна перерисовываем схему под новую ширину
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (!lastRender) return;
+    if (lastRender.vert !== isVert() || (lastRender.vert && lastRender.width !== window.innerWidth))
+      renderResult(lastRender.res, lastRender.P, lastRender.ms);
+  }, 200);
+});
+
+function renderResult(res, P, ms) {
+  const el = $('#results');
+  const vert = isVert();
+  const totalParts = P.types.reduce((s, t) => s + t.qty, 0);
+  const unpl = res.unplaced.reduce((s, x) => s + x, 0);
+  const utilNoOff = res.stockArea - res.offArea ? res.partArea / (res.stockArea - res.offArea) * 100 : 0;
+  // группировка одинаковых листов
+  const groups = [];
+  const bySig = new Map();
+  for (const sh of res.sheets) {
+    const sig = signature(sh);
+    if (bySig.has(sig)) bySig.get(sig).n++;
+    else { const g = { sh, n: 1 }; bySig.set(sig, g); groups.push(g); }
+  }
+  const byStock = new Map();
+  for (const sh of res.sheets) { const k = `${fmt(sh.stock.w)}×${fmt(sh.stock.l)}`; byStock.set(k, (byStock.get(k) || 0) + 1); }
+  const offcuts = res.sheets.filter(s => s.offcut && s.offcut.len >= P.minOffcut);
+
+  let html = `<h2>Результат <span class="sub">${res.runs} вариантов перебрано за ${(ms / 1000).toFixed(1)} с</span></h2>`;
+  if (unpl) {
+    html += `<div class="warn"><b>Не размещено ${unpl} шт.:</b> ` + P.types.filter(t => res.unplaced[t.id]).map(t => `${esc(t.name)} ${t.w}×${t.l} — ${res.unplaced[t.id]} шт.`).join('; ') +
+      '. Деталь больше листа или закончились листы на складе.</div>';
+  }
+  const cs = new Map(res.sheets.map(sh => [sh, cutStats(sh, P)]));
+  let cutsTotal = 0, cutLenTotal = 0;
+  for (const c of cs.values()) { cutsTotal += c.cuts; cutLenTotal += c.length; }
+  const pct = (a, b) => b ? ` <span class="pct">\\ ${(a / b * 100).toFixed(1)}%</span>` : '';
+  const unused = res.stockArea - res.partArea;
+  html += card('Общие данные', [
+    ['Использованный материал', [...byStock].map(([k, n]) => `${k} <span class="pct">×${n}</span>`).join('<br>') || '—'],
+    ['Общая использованная площадь', `${m2(res.partArea)} м²${pct(res.partArea, res.stockArea)}`],
+    ['Общая неиспользованная площадь', `${m2(unused)} м²${pct(unused, res.stockArea)}`],
+    ['в т.ч. деловые остатки', offcuts.length ? `${m2(res.offArea)} м² <span class="pct">(${offcuts.length} шт.)</span>` : 'нет'],
+    ['Использование без делового остатка', `${utilNoOff.toFixed(1)}%`],
+    ['Всего резов', fmt(cutsTotal)],
+    ['Длина всех резов', `${fmt(cutLenTotal)} мм`],
+    ['Толщина пропила', `${P.kerf} мм`],
+    ['Деталей размещено', `${totalParts - unpl} из ${totalParts}`],
+    ['Предпочтения по оптимизации', 'Меньше листов, затем меньше отходов'],
+  ]);
+  html += `<div class="legend"><span><span class="swatch" style="background:var(--offcut)"></span>деловой остаток</span>
+    <span><span class="swatch" style="background:#eceef1"></span>отход</span>
+    <span><span style="color:#d93025">- - -</span> поперечный рез (границы полос)</span><span>↻ деталь повёрнута</span></div>`;
+  let num = 1;
+  for (const g of groups) {
+    const sh = g.sh, s = sh.stock;
+    const u = sh.area / (s.w * s.l) * 100;
+    const range = g.n > 1 ? `${num}–${num + g.n - 1}` : `${num}`;
+    num += g.n;
+    html += `<div class="sheet"><div class="sheet-head"><b>Лист ${range}</b>${g.n > 1 ? `<span class="badge">× ${g.n} одинаковых</span>` : ''}
+      <span>${fmt(s.w)} × ${fmt(s.l)} мм</span><span>деталей: ${sh.pl.length}</span><span>заполнение: ${u.toFixed(1)}%</span>
+      ${sh.offcut ? `<span>остаток: ${fmt(s.w)}×${fmt(sh.offcut.len)}</span>` : ''}</div>
+      ${sheetSvg(sh, P, vert)}`;
+    const c = cs.get(sh), sa = s.w * s.l;
+    const goodOff = sh.offcut && sh.offcut.len >= P.minOffcut;
+    const wasteN = c.waste.length - (goodOff ? 1 : 0);
+    html += card(g.n > 1 ? `Данные по листу (×${g.n})` : 'Данные по листу', [
+      ['Материал', `${fmt(s.w)}×${fmt(s.l)}${g.n > 1 ? ` <span class="pct">×${g.n}</span>` : ''}`],
+      ['Использованная площадь', `${m2(sh.area)} м²${pct(sh.area, sa)}`],
+      ['Неиспользованная площадь', `${m2(sa - sh.area)} м²${pct(sa - sh.area, sa)}`],
+      ['Резы', fmt(c.cuts)],
+      ['Длина резов', `${fmt(c.length)} мм`],
+      ['Детали', fmt(sh.pl.length)],
+      ['Отходы', `${wasteN} шт.`],
+      ['Деловой остаток', goodOff ? `${fmt(s.w)}×${fmt(sh.offcut.len)}` : 'нет'],
+    ]);
+    html += '</div>';
+  }
+  el.innerHTML = html;
+  lastRender = { res, P, ms, vert, width: window.innerWidth };
+}
+
+$('#run').onclick = async () => {
+  const P = prepare(state);
+  if (!P.stocks.length) return alert('Добавьте хотя бы один лист.');
+  if (!P.types.length) return alert('Добавьте детали (ширина, длина, количество).');
+  const btn = $('#run'), bar = $('#progress');
+  btn.disabled = true; bar.style.display = 'block';
+  $('#runInfo').textContent = 'Считаю…';
+  const t0 = performance.now();
+  try {
+    const res = await optimize(P, +state.quality || 3, f => bar.firstElementChild.style.width = (f * 100) + '%');
+    renderResult(res, P, performance.now() - t0);
+    window.__last = { res, P };
+    if (isVert()) $('#results').scrollIntoView({ behavior: 'smooth' });
+    $('#runInfo').textContent = '';
+  } catch (e) {
+    console.error(e); $('#runInfo').textContent = 'Ошибка: ' + e.message;
+  } finally {
+    btn.disabled = false; bar.style.display = 'none';
+  }
+};
+
+renderAll();
+// офлайн-режим и установка на телефон — только для версии на сайте (https)
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
