@@ -86,6 +86,8 @@
   .tbl th, .tbl td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
   .tbl th { color: var(--muted); font-weight: 500; }
   .sheet-svg-wrap { display: flex; justify-content: center; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 4px; }
+  .actions button:disabled { opacity: .6; cursor: progress; }
   /* ---------- телефоны ---------- */
   @media (max-width: 700px) {
     header { padding: calc(10px + env(safe-area-inset-top)) 14px 10px; }
@@ -100,6 +102,7 @@
     button { padding: 10px 14px; }
     button.icon { padding: 9px 11px; }
     #run { width: 100%; padding: 14px; font-size: 16px; }
+    .actions button { flex: 1 1 auto; }
     #results { padding: 10px; }
     .kv { font-size: 13px; }
     .kv td { padding: 6px 10px; }
@@ -112,6 +115,7 @@
     body { background: #fff; }
     .layout { display: block; padding: 0; }
     .panel { border: none; padding: 0; }
+    svg.sheet-svg { width: 100% !important; height: auto !important; max-height: 95vh; }
   }
 </style>
 </head>
@@ -529,7 +533,7 @@ function sheetSvg(sh, P, vert) {
   let g = rect(R(0, 0, L, W), 'url(#hatch)', '#555', sw * 1.5);
   if (sh.offcut) {
     const good = sh.offcut.len >= P.minOffcut, r = R(sh.offcut.y, 0, sh.offcut.len, W);
-    g += rect(r, good ? 'var(--offcut)' : 'var(--scrap)', '#555', sw);
+    g += rect(r, good ? '#d7f2dd' : '#e9ecef', '#555', sw); // без CSS-переменных: схема рисуется и в PDF
     g += label(r, [`${good ? 'Остаток' : 'Отход'} ${fmt(W)}×${fmt(sh.offcut.len)}`], W * 0.09, [good ? '#1e6b34' : '#6b7280']);
   }
   for (const p of sh.pl) {
@@ -624,7 +628,12 @@ function renderResult(res, P, ms) {
   for (const sh of res.sheets) { const k = `${fmt(sh.stock.w)}×${fmt(sh.stock.l)}`; byStock.set(k, (byStock.get(k) || 0) + 1); }
   const offcuts = res.sheets.filter(s => s.offcut && s.offcut.len >= P.minOffcut);
 
-  let html = `<h2>Результат <span class="sub">${res.runs} вариантов перебрано за ${(ms / 1000).toFixed(1)} с</span></h2>`;
+  let html = `<h2>Результат <span class="sub">${res.runs} вариантов перебрано за ${(ms / 1000).toFixed(1)} с</span></h2>
+    <div class="actions noprint">
+      <button class="primary" id="pdfBtn">Скачать PDF</button>
+      ${canShareFiles() ? '<button id="shareBtn">Поделиться PDF</button>' : ''}
+      <button id="printBtn">Печать</button>
+    </div>`;
   if (unpl) {
     html += `<div class="warn"><b>Не размещено ${unpl} шт.:</b> ` + P.types.filter(t => res.unplaced[t.id]).map(t => `${esc(t.name)} ${t.w}×${t.l} — ${res.unplaced[t.id]} шт.`).join('; ') +
       '. Деталь больше листа или закончились листы на складе.</div>';
@@ -634,7 +643,7 @@ function renderResult(res, P, ms) {
   for (const c of cs.values()) { cutsTotal += c.cuts; cutLenTotal += c.length; }
   const pct = (a, b) => b ? ` <span class="pct">\\ ${(a / b * 100).toFixed(1)}%</span>` : '';
   const unused = res.stockArea - res.partArea;
-  html += card('Общие данные', [
+  const genRows = [
     ['Использованный материал', [...byStock].map(([k, n]) => `${k} <span class="pct">×${n}</span>`).join('<br>') || '—'],
     ['Общая использованная площадь', `${m2(res.partArea)} м²${pct(res.partArea, res.stockArea)}`],
     ['Общая неиспользованная площадь', `${m2(unused)} м²${pct(unused, res.stockArea)}`],
@@ -645,7 +654,9 @@ function renderResult(res, P, ms) {
     ['Толщина пропила', `${P.kerf} мм`],
     ['Деталей размещено', `${totalParts - unpl} из ${totalParts}`],
     ['Предпочтения по оптимизации', 'Меньше листов, затем меньше отходов'],
-  ]);
+  ];
+  html += card('Общие данные', genRows);
+  const report = { general: genRows, sheets: [], unplaced: unpl };
   html += `<div class="legend"><span><span class="swatch" style="background:var(--offcut)"></span>деловой остаток</span>
     <span><span class="swatch" style="background:#eceef1"></span>отход</span>
     <span><span style="color:#d93025">- - -</span> поперечный рез (границы полос)</span><span>↻ деталь повёрнута</span></div>`;
@@ -662,7 +673,7 @@ function renderResult(res, P, ms) {
     const c = cs.get(sh), sa = s.w * s.l;
     const goodOff = sh.offcut && sh.offcut.len >= P.minOffcut;
     const wasteN = c.waste.length - (goodOff ? 1 : 0);
-    html += card(g.n > 1 ? `Данные по листу (×${g.n})` : 'Данные по листу', [
+    const sheetRows = [
       ['Материал', `${fmt(s.w)}×${fmt(s.l)}${g.n > 1 ? ` <span class="pct">×${g.n}</span>` : ''}`],
       ['Использованная площадь', `${m2(sh.area)} м²${pct(sh.area, sa)}`],
       ['Неиспользованная площадь', `${m2(sa - sh.area)} м²${pct(sa - sh.area, sa)}`],
@@ -671,11 +682,143 @@ function renderResult(res, P, ms) {
       ['Детали', fmt(sh.pl.length)],
       ['Отходы', `${wasteN} шт.`],
       ['Деловой остаток', goodOff ? `${fmt(s.w)}×${fmt(sh.offcut.len)}` : 'нет'],
-    ]);
+    ];
+    html += card(g.n > 1 ? `Данные по листу (×${g.n})` : 'Данные по листу', sheetRows);
     html += '</div>';
+    report.sheets.push({ title: `Лист ${range}${g.n > 1 ? ` (×${g.n} одинаковых)` : ''} — ${fmt(s.w)}×${fmt(s.l)} мм`, sh, rows: sheetRows });
   }
   el.innerHTML = html;
-  lastRender = { res, P, ms, vert, width: window.innerWidth };
+  lastRender = { res, P, ms, vert, width: window.innerWidth, report };
+  $('#pdfBtn').onclick = () => exportPdf('download');
+  if ($('#shareBtn')) $('#shareBtn').onclick = () => exportPdf('share');
+  $('#printBtn').onclick = () => window.print();
+}
+
+/* ===================== PDF =====================
+ * Каждая страница рисуется на canvas (так кириллица и схемы выглядят как на экране),
+ * затем страницы-картинки (JPEG) собираются в PDF без сторонних библиотек.
+ */
+const pdfFileName = () => `raskroy-${new Date().toISOString().slice(0, 10)}.pdf`;
+function canShareFiles() {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'a.pdf', { type: 'application/pdf' })] })); }
+  catch (e) { return false; }
+}
+const plain = v => String(v).replace(/<br>/g, ', ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+const loadImg = src => new Promise((ok, fail) => { const im = new Image(); im.onload = () => ok(im); im.onerror = fail; im.src = src; });
+
+async function renderPdfPages(report, P) {
+  const PW = 1684, PH = 1191, M = 64; // A4 альбомная, ~144 dpi
+  const date = new Date().toLocaleDateString('ru-RU');
+  const pages = [];
+  let ctx, y;
+  const font = (px, bold) => { ctx.font = `${bold ? '600 ' : ''}${px}px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`; };
+  // maxW — ширина колонки: длинный текст уменьшается, чтобы не налезать на соседнюю
+  const text = (s, x, yy, px, bold, color = '#1d2330', maxW = Infinity) => {
+    font(px, bold);
+    while (px > 12 && ctx.measureText(s).width > maxW) font(--px, bold);
+    ctx.fillStyle = color; ctx.fillText(s, x, yy);
+  };
+  const newPage = () => {
+    const cv = document.createElement('canvas');
+    cv.width = PW; cv.height = PH; pages.push(cv);
+    ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, PH);
+    ctx.textBaseline = 'top';
+    text(`Раскрой монолитного поликарбоната · ${date} · стр. ${pages.length}`, M, PH - M + 24, 18, false, '#6b7280');
+    y = M;
+  };
+  const need = h => { if (y + h > PH - M) newPage(); };
+  const table = (title, rows, x, w, frac = 0.55) => { // frac — доля ширины под названия строк
+    need(52 + 42);
+    ctx.fillStyle = '#8fa3b1'; ctx.fillRect(x, y, w, 50);
+    text(title, x + 18, y + 12, 25, true, '#fff');
+    y += 50;
+    rows.forEach(([k, v], i) => {
+      need(42);
+      if (i % 2) { ctx.fillStyle = '#f5f7f9'; ctx.fillRect(x, y, w, 42); }
+      text(k, x + 18, y + 10, 21, true, '#1d2330', w * frac - 30);
+      text(plain(v), x + w * frac, y + 10, 21, false, '#1d2330', w * (1 - frac) - 18);
+      y += 42;
+    });
+    y += 26;
+  };
+
+  // стр. 1: заказ и общие данные
+  newPage();
+  text('Раскрой монолитного поликарбоната', M, y, 38, true); y += 58;
+  text(`Дата: ${date}`, M, y, 22, false, '#6b7280'); y += 46;
+  if (report.unplaced) { text(`Внимание: не размещено деталей — ${report.unplaced} шт.`, M, y, 22, true, '#d93025'); y += 40; }
+  const half = (PW - 2 * M - 40) / 2, y0 = y;
+  table('Общие данные', report.general, M, half);
+  const yLeft = y; y = y0;
+  table('Детали', P.types.map(t => [t.name, `${fmt(t.w)} × ${fmt(t.l)} мм — ${t.qty} шт.`]), M + half + 40, half, 0.16);
+  y = Math.max(y, yLeft);
+
+  // по странице на каждый (группу одинаковых) лист
+  for (const s of report.sheets) {
+    newPage();
+    text(s.title, M, y, 30, true); y += 54;
+    const svg = sheetSvg(s.sh, P, false).match(/<svg[\s\S]*<\/svg>/)[0];
+    const [, , vbW, vbH] = svg.match(/viewBox="([^"]+)"/)[1].split(' ').map(Number);
+    const maxW = PW - 2 * M, maxH = PH * 0.45;
+    const k = Math.min(maxW / vbW, maxH / vbH), iw = vbW * k, ih = vbH * k;
+    const img = await loadImg('data:image/svg+xml;charset=utf-8,' +
+      encodeURIComponent(svg.replace('<svg ', `<svg width="${Math.round(iw)}" height="${Math.round(ih)}" `)));
+    ctx.drawImage(img, M + (maxW - iw) / 2, y, iw, ih);
+    y += ih + 24;
+    table('Данные по листу', s.rows, M, PW - 2 * M);
+  }
+  return pages;
+}
+
+// Сборка PDF из JPEG-страниц (A4 альбомная, 842×595 pt)
+function pagesToPdf(pages) {
+  const enc = new TextEncoder(), parts = [], offs = [];
+  let len = 0;
+  const put = d => { const b = typeof d === 'string' ? enc.encode(d) : d; parts.push(b); len += b.length; };
+  const obj = (n, body) => { offs[n] = len; put(`${n} 0 obj\n`); body(); put('\nendobj\n'); };
+  const W = 842, H = 595, n = pages.length, total = 3 + n * 3;
+  put('%PDF-1.4\n');
+  obj(1, () => put('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2, () => put(`<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i * 3} 0 R`).join(' ')}] /Count ${n} >>`));
+  pages.forEach((cv, i) => {
+    const pn = 3 + i * 3, cn = pn + 1, im = pn + 2;
+    const jpeg = Uint8Array.from(atob(cv.toDataURL('image/jpeg', 0.9).split(',')[1]), c => c.charCodeAt(0));
+    const cs = `q ${W} 0 0 ${H} 0 0 cm /Im0 Do Q`;
+    obj(pn, () => put(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${im} 0 R >> >> /Contents ${cn} 0 R >>`));
+    obj(cn, () => { put(`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`); });
+    obj(im, () => {
+      put(`<< /Type /XObject /Subtype /Image /Width ${cv.width} /Height ${cv.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`);
+      put(jpeg); put('\nendstream');
+    });
+  });
+  const xref = len;
+  put(`xref\n0 ${total}\n0000000000 65535 f \n`);
+  for (let i = 1; i < total; i++) put(`${String(offs[i]).padStart(10, '0')} 00000 n \n`);
+  put(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(parts, { type: 'application/pdf' });
+}
+
+async function exportPdf(mode) {
+  if (!lastRender) return;
+  const btn = mode === 'share' ? $('#shareBtn') : $('#pdfBtn'), label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Готовлю PDF…';
+  try {
+    const blob = pagesToPdf(await renderPdfPages(lastRender.report, lastRender.P));
+    const name = pdfFileName();
+    if (mode === 'share') {
+      await navigator.share({ files: [new File([blob], name, { type: 'application/pdf' })], title: 'Раскрой поликарбоната' });
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') { console.error(e); alert('Не удалось создать PDF: ' + e.message); }
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
 }
 
 $('#run').onclick = async () => {
